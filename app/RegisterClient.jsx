@@ -218,9 +218,6 @@ export default function RegisterClient({ appId, mToken }) {
 
         {loading ? <div className={styles.alert}>กำลังเรียก Deproc และตรวจฐานข้อมูล...</div> : null}
 
-        {hint ? <div className={styles.alert}>{hint}</div> : null}
-        {error ? <div className={`${styles.alert} ${styles.error}`}>{error}</div> : null}
-
         {profile ? (
           <div className={styles.grid}>
             <div className={styles.panel}>
@@ -246,12 +243,6 @@ export default function RegisterClient({ appId, mToken }) {
           </div>
         ) : null}
 
-        {debug ? (
-          <details style={{ marginTop: 12 }}>
-            <summary style={{ cursor: 'pointer' }}>Debug</summary>
-            <pre className={styles.debug}>{debug}</pre>
-          </details>
-        ) : null}
       </section>
     </main>
   )
