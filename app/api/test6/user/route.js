@@ -23,7 +23,7 @@ export async function GET(req) {
     if (citizenId) {
       user = await col.findOne({ citizenId })
     } else if (appId) {
-      // Prefer the latest appId mapping, fallback to legacy field.
+
       user = (await col.findOne({ lastAppId: appId })) || (await col.findOne({ appId }))
     }
 
@@ -58,7 +58,6 @@ export async function POST(req) {
       email: norm(body?.email),
       czpUserId: norm(body?.czpUserId),
       notification: body?.notification ?? null,
-      // Keep legacy field and also store the latest appId mapping
       appId,
       lastAppId: appId,
       updatedAt: new Date(),

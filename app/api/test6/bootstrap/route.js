@@ -11,7 +11,6 @@ function pickProfile(raw) {
 
   const unwrap = (x) => {
     if (!x) return x
-    // Common wrappers: axios {data:...}, APIs {result:...}/{Result:...}
     if (x?.data) x = x.data
     if (x?.result) x = x.result
     if (x?.Result) x = x.Result
@@ -23,8 +22,6 @@ function pickProfile(raw) {
     return digits.length === 13 ? digits : ''
   }
 
-  // Find the nearest object that contains citizenId (deeply nested), because
-  // different environments may wrap the payload in different shapes.
   const KEYS = ['citizenId', 'citizenID', 'citizen_id', 'pid', 'personalId']
   const visited = new Set()
   const queue = [unwrap(raw)]
@@ -84,7 +81,6 @@ export async function POST(req) {
       return NextResponse.json({ ok: false, error: 'Missing appId or mToken' }, { status: 400 })
     }
 
-    // 1) Deproc (this will perform Auth validate internally first)
     const deprocRaw = await egovDeproc({ appId, mToken })
     const profile = pickProfile(deprocRaw)
 
@@ -95,7 +91,6 @@ export async function POST(req) {
       )
     }
 
-    // 2) Only AFTER we have citizenId, check DB
     const client = await clientPromise
     const db = client.db()
     const users = db.collection('users')
@@ -103,14 +98,12 @@ export async function POST(req) {
     const user = await users.findOne({ citizenId: profile.citizenId })
 
     if (user) {
-      // Keep mapping from the latest appId to this user so /test6/home can load by appId.
-      // Also refresh basic profile fields from Deproc (non-destructive for fields not present).
       await users.updateOne(
         { citizenId: profile.citizenId },
         {
           $set: {
             ...profile,
-            appId, // legacy field
+            appId, 
             lastAppId: appId,
             updatedAt: new Date(),
           },

@@ -42,9 +42,9 @@ export async function POST(req) {
         { status: 400 }
       )
     }
-    // ไม่บังคับ sendDateTime (ปล่อยให้ระบบปลายทางกำหนดเวลาเอง)
+
     const result = await egovPushNotification({ appId, userId, message })
-await col.updateOne(
+    await col.updateOne(
       { citizenId },
       {
         $set: {

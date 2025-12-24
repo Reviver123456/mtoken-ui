@@ -1,14 +1,7 @@
 import { Suspense } from 'react'
 import styles from './page.module.css'
 import HomeClient from './HomeClient'
-
-// This page depends on runtime URL query parameters.
-// Force dynamic rendering so Next won't attempt to prerender/capture stale params.
 export const dynamic = 'force-dynamic'
-
-// Next.js will prerender this route during `next build`.
-// We avoid calling `useSearchParams()` directly in the page component.
-// Instead we read `searchParams` on the server and pass them down to a client component.
 
 export default function HomePage({ searchParams }) {
   const get = (...keys) => {
