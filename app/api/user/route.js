@@ -11,9 +11,6 @@ export async function GET(req) {
     const citizenId = norm(url.searchParams.get('citizenId'))
     const appId = norm(url.searchParams.get('appId') || url.searchParams.get('appid'))
 
-    if (!citizenId && !appId) {
-      return NextResponse.json({ ok: false, error: 'Missing citizenId or appId' }, { status: 400 })
-    }
 
     const client = await clientPromise
     const db = client.db()
@@ -25,6 +22,9 @@ export async function GET(req) {
     } else if (appId) {
 
       user = (await col.findOne({ lastAppId: appId })) || (await col.findOne({ appId }))
+    } else {
+      // fallback: latest record
+      user = await col.findOne({}, { sort: { updatedAt: -1, createdAt: -1 } })
     }
 
     if (!user) {

@@ -14,6 +14,7 @@ export default function HomePage({ searchParams }) {
 
   const citizenId = get('citizenId', 'citizenid', 'CitizenId', 'CITIZENID')
   const appId = get('appId', 'appid', 'AppId', 'APPID')
+  const mToken = get('mToken', 'mtoken', 'MToken', 'MTOKEN')
 
   return (
     <Suspense
@@ -25,7 +26,7 @@ export default function HomePage({ searchParams }) {
         </main>
       }
     >
-      <HomeClient citizenId={citizenId} appId={appId} />
+      <HomeClient citizenId={citizenId} appId={appId} mToken={mToken} />
     </Suspense>
   )
 }

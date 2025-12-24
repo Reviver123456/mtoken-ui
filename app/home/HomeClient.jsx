@@ -33,7 +33,29 @@ async function apiFetch(url, options) {
   return json
 }
 
-export default function HomeClient({ citizenId, appId }) {
+function extractCitizenIdFromDeproc(data) {
+  // รองรับหลายรูปแบบของ payload จาก eGOV
+  const candidates = [
+    data?.result?.citizenId,
+    data?.Result?.citizenId,
+    data?.result?.citizenID,
+    data?.Result?.citizenID,
+    data?.result?.CitizenId,
+    data?.Result?.CitizenId,
+    // บางระบบฝังใน data.result.data หรือ data.result.profile
+    data?.result?.data?.citizenId,
+    data?.result?.profile?.citizenId,
+    data?.Result?.data?.citizenId,
+    data?.Result?.profile?.citizenId,
+  ]
+  for (const v of candidates) {
+    const s = (v || '').toString().trim()
+    if (s) return s
+  }
+  return ''
+}
+
+export default function HomeClient({ citizenId, appId, mToken }) {
   const [loading, setLoading] = useState(false)
   const [sending, setSending] = useState(false)
   const [error, setError] = useState('')
@@ -59,9 +81,10 @@ export default function HomeClient({ citizenId, appId }) {
         return {
           citizenId: pick('citizenId', 'citizenid', 'CitizenId', 'CITIZENID'),
           appId: pick('appId', 'appid', 'AppId', 'APPID'),
+          mToken: pick('mToken', 'mtoken', 'MToken', 'MTOKEN'),
         }
       } catch {
-        return { citizenId: '', appId: '' }
+        return { citizenId: '', appId: '', mToken: '' }
       }
     }
 
@@ -79,19 +102,42 @@ export default function HomeClient({ citizenId, appId }) {
       setNotifyResult(null)
 
       const fromUrl = pickFromClientUrl()
-      const cid = (citizenId || fromUrl.citizenId || pickFromStorage('egov.citizenId')).toString().trim()
+      const cidFromInputs = (citizenId || fromUrl.citizenId || pickFromStorage('egov.citizenId')).toString().trim()
       const aid = (appId || fromUrl.appId || pickFromStorage('egov.appId')).toString().trim()
+      const token = (mToken || fromUrl.mToken || pickFromStorage('egov.mToken')).toString().trim()
+
+      setEffectiveAppId(aid)
+
+      // ✅ เป้าหมาย: ให้หน้า Home ใช้ citizenId เป็นหลัก (ไม่ใช้ appId ในการดึง DB)
+      // หากไม่มี citizenId แต่มี appId+mToken -> เรียก deproc เพื่อถอด citizenId
+      let cid = cidFromInputs
+      if (!cid && aid && token) {
+        try {
+          const deproc = await apiFetch('/api/deproc', {
+            method: 'POST',
+            body: JSON.stringify({ appId: aid, mToken: token }),
+          })
+          const extracted = extractCitizenIdFromDeproc(deproc?.data)
+          if (extracted) cid = extracted
+
+          // เก็บ mToken ไว้เพื่อใช้ต่อ (ถ้าต้องการ)
+          try {
+            if (token) {
+              localStorage.setItem('egov.mToken', token)
+              sessionStorage.setItem('egov.mToken', token)
+            }
+          } catch {}
+        } catch (e) {
+          // ถ้าถอดไม่สำเร็จ ก็ปล่อยให้ไป fallback ด้านล่าง (แสดงล่าสุด/หรือ error)
+        }
+      }
 
       setEffectiveCitizenId(cid)
-      setEffectiveAppId(aid)
 
       setLoading(true)
       try {
-        const url = aid
-          ? `/api/user?appId=${encodeURIComponent(aid)}`
-          : cid
-            ? `/api/user?citizenId=${encodeURIComponent(cid)}`
-            : '/api/user/latest'
+        // ✅ ดึงจาก DB ด้วย citizenId เท่านั้น
+        const url = cid ? `/api/user?citizenId=${encodeURIComponent(cid)}` : '/api/user/latest'
 
         const res = await apiFetch(url, { method: 'GET' })
 
@@ -104,25 +150,21 @@ export default function HomeClient({ citizenId, appId }) {
 
         try {
           const savedCitizenId = (res.data?.citizenId || cid || '').toString().trim()
-          const savedAppId = (aid || res.data?.lastAppId || res.data?.appId || '').toString().trim()
           if (savedCitizenId) {
             localStorage.setItem('egov.citizenId', savedCitizenId)
             sessionStorage.setItem('egov.citizenId', savedCitizenId)
             setEffectiveCitizenId(savedCitizenId)
           }
-          if (savedAppId) {
-            localStorage.setItem('egov.appId', savedAppId)
-            sessionStorage.setItem('egov.appId', savedAppId)
-            setEffectiveAppId(savedAppId)
+          if (aid) {
+            localStorage.setItem('egov.appId', aid)
+            sessionStorage.setItem('egov.appId', aid)
           }
-        } catch {
+        } catch {}
 
-        }
-
-        if (!aid && (res.data?.lastAppId || res.data?.appId)) {
-          setInfo('หมายเหตุ: หน้านี้ไม่ได้รับ appId จาก URL แต่พบ appId ที่บันทึกไว้ในฐานข้อมูลและจะใช้ค่านั้นแทน')
-        } else if (!aid && !cid) {
-          setInfo('หมายเหตุ: ไม่ได้ระบุ appId/citizenId ใน URL จึงแสดง “ผู้ใช้ล่าสุด” จากฐานข้อมูล')
+        if (!cidFromInputs && cid) {
+          setInfo('หมายเหตุ: ระบบถอด citizenId จาก mToken แล้วใช้ citizenId นั้นในการดึงข้อมูลจากฐานข้อมูล')
+        } else if (!cid) {
+          setInfo('หมายเหตุ: ไม่ได้ระบุ citizenId และถอดจาก mToken ไม่สำเร็จ จึงแสดง “ผู้ใช้ล่าสุด” จากฐานข้อมูล')
         }
       } catch (e) {
         const msg = e instanceof Error ? e.message : 'โหลดข้อมูลไม่สำเร็จ'
@@ -136,7 +178,7 @@ export default function HomeClient({ citizenId, appId }) {
     return () => {
       alive = false
     }
-  }, [citizenId, appId])
+  }, [citizenId, appId, mToken])
 
   async function onNotify() {
     const cid = (effectiveCitizenId || user?.citizenId || '').toString().trim()
